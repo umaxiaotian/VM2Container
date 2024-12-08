@@ -1,0 +1,50 @@
+# Auto-generated Dockerfile
+FROM {{ base_image }}:{{ version }}
+
+# システムを最新状態に更新
+RUN yum update -y && yum makecache
+
+# 競合解決オプションを追加し、パッケージをインストール
+RUN yum install -y --allowerasing \
+{% for package in packages %}
+{{ package }}{% if not loop.last %} \
+{% endif %}
+{% endfor %}
+
+{% if aliases %}
+# エイリアスの設定
+{% for alias in aliases %}
+RUN echo 'alias {{ alias }}' >> /etc/profile
+{% endfor %}
+{% endif %}
+
+{% if env_vars %}
+# 環境変数の設定
+{% for key, value in env_vars.items() %}
+{% if not key | fnmatch_filter(exclude_list) %}
+ENV {{ key }}="{{ value | replace("\n", "\\n") }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+
+# 一時ディレクトリにコピー
+{% for target_dir in target_dirs %}
+COPY ./extracted/{{ target_dir }}/ /custom/{{ target_dir }}/
+{% endfor %}
+
+# 特定ファイルをコピー
+{% for specific_file in specific_files %}
+COPY ./extracted/{{ specific_file | basename }} {{ specific_file }}
+{% endfor %}
+
+# システムディレクトリへのコピー（ディレクトリを含む上書きを試行、失敗した場合はスキップ）
+RUN find /custom/etc -exec bash -c 'if [ -e /etc/$(basename {}) ]; then cp -rf {} /etc/ || echo "Failed to overwrite /etc/$(basename {})"; else cp -r {} /etc/; fi' \;
+RUN find /custom/bin -exec bash -c 'if [ -e /bin/$(basename {}) ]; then cp -rf {} /bin/ || echo "Failed to overwrite /bin/$(basename {})"; else cp -r {} /bin/; fi' \;
+RUN find /custom/opt -exec bash -c 'if [ -e /opt/$(basename {}) ]; then cp -rf {} /opt/ || echo "Failed to overwrite /opt/$(basename {})"; else cp -r {} /opt/; fi' \;
+RUN find /custom/sbin -exec bash -c 'if [ -e /sbin/$(basename {}) ]; then cp -rf {} /sbin/ || echo "Failed to overwrite /sbin/$(basename {})"; else cp -r {} /sbin/; fi' \;
+
+# /custom ディレクトリを削除
+RUN rm -rf /custom
+
+# その他の設定が必要であればここに追加
+CMD ["/bin/bash"]

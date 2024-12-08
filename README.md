@@ -1,1 +1,2 @@
-# VM2Container
+# VHDtoContainer
+サンプルです。
